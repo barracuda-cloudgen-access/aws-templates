@@ -13,6 +13,10 @@ Check the [Product Documentation](https://campus.barracuda.com/product/cloudgena
 - Auto Scaling Group with Network Load Balancer
 - ECS on AWS Fargate (using docker containers)
 
+### Actions
+
+- Check [Makefile](./Makefile)
+
 ## Links
 
 - [Docs](https://campus.barracuda.com/product/cloudgenaccess/doc/93201591/install-in-aws/)
