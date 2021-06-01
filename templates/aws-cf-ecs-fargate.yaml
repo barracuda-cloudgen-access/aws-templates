@@ -2,28 +2,70 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Description: >-
-  fyde Access Proxy Cloudformation template
+  CloudGen Access Proxy Cloudformation template
   Creates ECS containers in AWS Fargate infrastructure
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: CloudGen Access Configuration
+        Parameters:
+          - cloudgenAccessProxyToken
+          - cloudgenAccessProxyPublicPort
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - vpcId
+          - publicSubnets
+      - Label:
+          default: Container Configuration
+        Parameters:
+          - orchestratorDesiredCapacity
+          - envoyDesiredCapacity
+      - Label:
+          default: Logging
+        Parameters:
+          - cloudgenAccessProxyLoglevel
+          - logRetentionDays
+    ParameterLabels:
+      cloudgenAccessProxyToken:
+        default: CloudGen Access Proxy Token
+      cloudgenAccessProxyPublicPort:
+        default: CloudGen Access Proxy public port
+      vpcId:
+        default: Vpc Id
+      publicSubnets:
+        default: Public subnets for containers
+      orchestratorDesiredCapacity:
+        default: Number of containers for Orchestrator
+      envoyDesiredCapacity:
+        default: Number of containers for Envoy
+      cloudgenAccessProxyLoglevel:
+        default: Log level for the application
+      logRetentionDays:
+        default: Log Retention
 
 Parameters:
 
-  fydeAccessProxyToken:
-    Description: fyde Access Proxy Token for this proxy (obtained from the console after proxy creation)
+  cloudgenAccessProxyToken:
+    Description: CloudGen Access Proxy Token for this proxy (obtained from the console after proxy creation)
     Type: String
     MinLength: 20
     NoEcho: true
     AllowedPattern: '^https:\/\/.*\.fyde\.com\/proxies.*proxy_auth_token.*$'
 
-  fydeAccessProxyPublicPort:
+  cloudgenAccessProxyPublicPort:
     Description: Public port for this proxy (must match the value configured in the console for this proxy)
     Default: 443
     Type: Number
     MinValue: 1
     MaxValue: 65535
 
-  fydeAccessProxyLoglevel:
+  cloudgenAccessProxyLoglevel:
     Description: >-
-      Set the Fyde Proxy orchestrator log level.
+      Set the CloudGen Access Proxy orchestrator log level.
       Default is info.
     Type: String
     Default: info
@@ -62,10 +104,28 @@ Parameters:
     MinValue: 1
 
   logRetentionDays:
-    Description: Days to keep container logs in Cloudwatch (0 = never delete)
-    Default: 30
+    Description: Days to keep container logs on Cloudwatch (0 = never delete)
     Type: Number
-    MinValue: 0
+    Default: 7
+    AllowedValues:
+      - 0
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
 
 Conditions:
 
@@ -78,17 +138,17 @@ Resources:
 ## Secrets
 ##
 
-  fydeEnrollmentToken:
+  cloudGenAccessEnrollmentToken:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: fyde_enrollment_token
-      Description: fyde Access Proxy Enrollment Token
-      SecretString: !Ref fydeAccessProxyToken
+      Name: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}_enrollment_token' ] ]
+      Description: CloudGen Access Proxy Enrollment Token
+      SecretString: !Ref cloudgenAccessProxyToken
       Tags:
         - Key: Name
-          Value: fydeEnrollmentToken
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: orchestrator
         - Key: Platform
@@ -101,14 +161,16 @@ Resources:
   privateNamespace:
     Type: AWS::ServiceDiscovery::PrivateDnsNamespace
     Properties:
-        Name: fyde-access-proxy-ecs-fargate
-        Vpc: !Ref vpcId
+      Name: !Sub '${AWS::StackName}-cloudgenaccessproxy'
+      Vpc: !Ref vpcId
 
   logGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: fyde-access-proxy-ecs-fargate
-      RetentionInDays: !If [logGroupNoDelete, !Ref "AWS::NoValue", !Ref logRetentionDays]
+      LogGroupName: !Sub '/aws/ecs/${AWS::StackName}-CloudGenAccessProxy'
+      RetentionInDays: !If [logGroupNoDelete, !Ref 'AWS::NoValue', !Ref logRetentionDays]
 
 ##
 ## Network Load Balancer
@@ -122,9 +184,9 @@ Resources:
       Type: network
       Tags:
         - Key: Name
-          Value: fyde
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -137,7 +199,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref nlbTargetGroup
       LoadBalancerArn: !Ref nlb
-      Port: !Ref fydeAccessProxyPublicPort
+      Port: !Ref cloudgenAccessProxyPublicPort
       Protocol: TCP
 
   nlbTargetGroup:
@@ -146,16 +208,16 @@ Resources:
     Properties:
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 3
-      Port: !Ref fydeAccessProxyPublicPort
+      Port: !Ref cloudgenAccessProxyPublicPort
       Protocol: TCP
       UnhealthyThresholdCount: 3
       TargetType: ip
       VpcId: !Ref vpcId
       Tags:
         - Key: Name
-          Value: fyde
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -168,18 +230,18 @@ Resources:
   inboundSg:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow inbound access to fyde Access Proxy on the configured port
+      GroupDescription: Allow inbound access to CloudGen Access Proxy on the configured port
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: !Ref fydeAccessProxyPublicPort
-          ToPort: !Ref fydeAccessProxyPublicPort
+          FromPort: !Ref cloudgenAccessProxyPublicPort
+          ToPort: !Ref cloudgenAccessProxyPublicPort
           CidrIp: 0.0.0.0/0
       VpcId: !Ref vpcId
       Tags:
         - Key: Name
-          Value: fydeInbound
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -197,9 +259,9 @@ Resources:
       VpcId: !Ref vpcId
       Tags:
         - Key: Name
-          Value: fydeOrchestrator
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: orchestrator
         - Key: Platform
@@ -218,9 +280,9 @@ Resources:
       VpcId: !Ref vpcId
       Tags:
         - Key: Name
-          Value: fydeRedis
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: redis
         - Key: Platform
@@ -233,9 +295,9 @@ Resources:
       VpcId: !Ref vpcId
       Tags:
         - Key: Name
-          Value: fydeEnvoy
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -248,14 +310,14 @@ Resources:
   ecsCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: fydeAccessProxy
+      ClusterName: !Sub '${AWS::StackName}-CloudGenAccessProxy'
       Tags:
         - Key: Name
-          Value: fydeAccessProxy
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Platform
           Value: ecsFargate
 
@@ -277,28 +339,35 @@ Resources:
 
   orchestratorEcsTask:
     Type: AWS::ECS::TaskDefinition
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - E3012
     Properties:
       Cpu: '256'
       Memory: '0.5GB'
-      ExecutionRoleArn: !Ref orchestratorRole
+      ExecutionRoleArn: !GetAtt orchestratorRole.Arn
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       TaskRoleArn: !Ref taskRole
       ContainerDefinitions:
-        - Name: fydeOrchestrator
-          Image: fydeinc/fydeproxy-centos:latest
+        - Name: !Sub '${AWS::StackName}-cloudgenAccessOrchestrator'
+          Image: fydeinc/fydeproxy:latest
           Environment:
+            - Name: FYDE_PREFIX
+              Value: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}' ] ]
             - Name: FYDE_ENVOY_LISTENER_PORT
-              Value: !Ref fydeAccessProxyPublicPort
+              Value: !Ref cloudgenAccessProxyPublicPort
             - Name: FYDE_LOGLEVEL
-              Value: !Ref fydeAccessProxyLoglevel
+              Value: !Ref cloudgenAccessProxyLoglevel
             - !If
               - createRedis
               - Name: FYDE_REDIS_HOST
                 Value: !Sub
-                  - ${redisHostname}.fyde-access-proxy-ecs-fargate
-                  - { redisHostname: !GetAtt redisDiscoveryService.Name }
+                  - ${redisDiscoveryService}.${AWS::StackName}-cloudgenaccessproxy
+                  - { redisDiscoveryService: !GetAtt redisDiscoveryService.Name }
               - !Ref AWS::NoValue
             - !If
               - createRedis
@@ -311,15 +380,11 @@ Resources:
               Protocol: tcp
           Secrets:
             - Name: FYDE_ENROLLMENT_TOKEN
-              ValueFrom: !Ref fydeEnrollmentToken
+              ValueFrom: !Ref cloudGenAccessEnrollmentToken
           HealthCheck:
             Command:
               - CMD-SHELL
-              - cat
-              - <
-              - /dev/null
-              - >
-              - /dev/tcp/127.0.0.1/50051
+              - /usr/bin/nc -zv 127.0.0.1 50051
             Interval: 5
             Retries: 3
             StartPeriod: 15
@@ -330,12 +395,12 @@ Resources:
             Options:
               awslogs-group: !Ref logGroup
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: fydeAccessProxy
+              awslogs-stream-prefix: !Sub '/aws/ecs/${AWS::StackName}-CloudGenAccessProxy'
       Tags:
         - Key: Name
-          Value: fydeOrchestrator
+          Value: !Sub '${AWS::StackName}-cloudgenAccessOrchestrator'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: orchestrator
         - Key: Platform
@@ -344,7 +409,7 @@ Resources:
   orchestratorEcsService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: fydeOrchestrator
+      ServiceName: !Sub '${AWS::StackName}-cloudgenAccessOrchestrator'
       Cluster: !Ref ecsCluster
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -360,14 +425,14 @@ Resources:
       LaunchType: FARGATE
       ServiceRegistries:
         - RegistryArn: !GetAtt orchestratorDiscoveryService.Arn
-          ContainerName: fydeOrchestrator
+          ContainerName: orchestrator
       SchedulingStrategy: REPLICA
       TaskDefinition: !Ref orchestratorEcsTask
       Tags:
         - Key: Name
-          Value: fydeOrchestrator
+          Value: !Sub '${AWS::StackName}-cloudgenAccessOrchestrator'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: orchestrator
         - Key: Platform
@@ -376,8 +441,8 @@ Resources:
   orchestratorDiscoveryService:
     Type: AWS::ServiceDiscovery::Service
     Properties:
-      Name: Orchestrator
-      Description: Discovery service for the fyde orchestrator service
+      Name: orchestrator
+      Description: Discovery service for the CloudGen orchestrator service
       DnsConfig:
         RoutingPolicy: WEIGHTED
         DnsRecords:
@@ -389,6 +454,11 @@ Resources:
 
   orchestratorRole:
     Type: AWS::IAM::Role
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - I3042
     Properties:
       AssumeRolePolicyDocument:
         Statement:
@@ -399,19 +469,21 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: fydeSecrets
+        - PolicyName: orchestratorSecrets
           PolicyDocument:
             Statement:
               - Effect: Allow
                 Action:
                   - 'secretsmanager:DescribeSecret'
                   - 'secretsmanager:GetSecretValue'
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:fyde_*'
+                Resource: !Sub
+                  - 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Value}_*'
+                  - { Value: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}' ] ] }
               - Effect: Allow
                 Action:
                   - 'secretsmanager:ListSecrets'
                 Resource: '*'
-        - PolicyName: fydeLogStream
+        - PolicyName: orchestratorLogStream
           PolicyDocument:
             Statement:
               - Effect: Allow
@@ -430,13 +502,13 @@ Resources:
     Properties:
       Cpu: '256'
       Memory: '0.5GB'
-      ExecutionRoleArn: !Ref redisRole
+      ExecutionRoleArn: !GetAtt redisRole.Arn
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       TaskRoleArn: !Ref taskRole
       ContainerDefinitions:
-        - Name: fydeRedis
+        - Name: !Sub '${AWS::StackName}-cloudgenAccessRedis'
           Image: redis:5
           PortMappings:
             - ContainerPort: 6379
@@ -456,12 +528,12 @@ Resources:
             Options:
               awslogs-group: !Ref logGroup
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: fydeAccessProxy
+              awslogs-stream-prefix: !Sub '/aws/ecs/${AWS::StackName}-CloudGenAccessProxy'
       Tags:
         - Key: Name
-          Value: fydeRedis
+          Value: !Sub '${AWS::StackName}-cloudgenAccessRedis'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: redis
         - Key: Platform
@@ -471,7 +543,7 @@ Resources:
     Type: AWS::ECS::Service
     Condition: createRedis
     Properties:
-      ServiceName: fydeRedis
+      ServiceName: !Sub '${AWS::StackName}-cloudgenAccessRedis'
       Cluster: !Ref ecsCluster
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -484,14 +556,14 @@ Resources:
       LaunchType: FARGATE
       ServiceRegistries:
         - RegistryArn: !GetAtt redisDiscoveryService.Arn
-          ContainerName: fydeRedis
+          ContainerName: redis
       SchedulingStrategy: REPLICA
       TaskDefinition: !Ref redisEcsTask
       Tags:
         - Key: Name
-          Value: fydeRedis
+          Value: !Sub '${AWS::StackName}-cloudgenAccessRedis'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: redis
         - Key: Platform
@@ -502,7 +574,7 @@ Resources:
     Condition: createRedis
     Properties:
       Name: redis
-      Description: Discovery service for the fyde redis service
+      Description: Discovery service for the CloudGen redis service
       DnsConfig:
         RoutingPolicy: WEIGHTED
         DnsRecords:
@@ -525,7 +597,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: fydeLogStream
+        - PolicyName: redisLogStream
           PolicyDocument:
             Statement:
               - Effect: Allow
@@ -543,35 +615,31 @@ Resources:
     Properties:
       Cpu: '512'
       Memory: '1GB'
-      ExecutionRoleArn: !Ref envoyRole
+      ExecutionRoleArn: !GetAtt envoyRole.Arn
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       TaskRoleArn: !Ref taskRole
       ContainerDefinitions:
-        - Name: fydeEnvoy
+        - Name: !Sub '${AWS::StackName}-cloudgenAccessEnvoy'
           Image: fydeinc/envoyproxy-centos:latest
           Environment:
             - Name: FYDE_PROXY_HOST
               Value: !Sub
-                - ${orchestratorHostname}.fyde-access-proxy-ecs-fargate
-                - { orchestratorHostname: !GetAtt orchestratorDiscoveryService.Name }
+                - ${orchestratorDiscoveryService}.${AWS::StackName}-cloudgenaccessproxy
+                - { orchestratorDiscoveryService: !GetAtt orchestratorDiscoveryService.Name }
             - Name: FYDE_PROXY_PORT
               Value: '50051'
           PortMappings:
-            - ContainerPort: !Ref fydeAccessProxyPublicPort
-              HostPort: !Ref fydeAccessProxyPublicPort
+            - ContainerPort: !Ref cloudgenAccessProxyPublicPort
+              HostPort: !Ref cloudgenAccessProxyPublicPort
               Protocol: tcp
           HealthCheck:
             Command:
               - CMD-SHELL
-              - cat
-              - <
-              - /dev/null
-              - >
               - !Sub
-                - /dev/tcp/127.0.0.1/${publicPort}
-                - { publicPort: !Ref fydeAccessProxyPublicPort }
+                - /usr/bin/cat < /dev/null > /dev/tcp/127.0.0.1/${publicPort}
+                - { publicPort: !Ref cloudgenAccessProxyPublicPort }
             Interval: 5
             Retries: 3
             StartPeriod: 15
@@ -582,12 +650,12 @@ Resources:
             Options:
               awslogs-group: !Ref logGroup
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: fydeAccessProxy
+              awslogs-stream-prefix: !Sub '/aws/ecs/${AWS::StackName}-CloudGenAccessProxy'
       Tags:
         - Key: Name
-          Value: fydeEnvoy
+          Value: cloudGenAccessEnvoy
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -596,7 +664,7 @@ Resources:
   envoyEcsService:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: fydeEnvoy
+      ServiceName: !Sub '${AWS::StackName}-cloudgenAccessEnvoy'
       Cluster: !Ref ecsCluster
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -606,8 +674,8 @@ Resources:
             - !Ref inboundSg
           Subnets: !Ref publicSubnets
       LoadBalancers:
-        - ContainerName: fydeEnvoy
-          ContainerPort: !Ref fydeAccessProxyPublicPort
+        - ContainerName: !Sub '${AWS::StackName}-cloudgenAccessEnvoy'
+          ContainerPort: !Ref cloudgenAccessProxyPublicPort
           TargetGroupArn: !Ref nlbTargetGroup
       DeploymentConfiguration:
         MaximumPercent: 200
@@ -619,9 +687,9 @@ Resources:
       TaskDefinition: !Ref envoyEcsTask
       Tags:
         - Key: Name
-          Value: fydeEnvoy
+          Value: !Sub '${AWS::StackName}-cloudgenAccessEnvoy'
         - Key: Application
-          Value: fydeAccessProxy
+          Value: cloudGenAccessProxy
         - Key: Service
           Value: envoy
         - Key: Platform
@@ -639,7 +707,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Policies:
-        - PolicyName: fydeLogStream
+        - PolicyName: envoyLogStream
           PolicyDocument:
             Statement:
               - Effect: Allow
@@ -650,10 +718,10 @@ Resources:
 
 Outputs:
   networkLoadBalancerDnsName:
-    Description: Update the fyde Access Proxy in the Console with this DNS name
+    Description: Update the CloudGen Access Proxy in the Console with this DNS name
     Value:
       !GetAtt nlb.DNSName
   securityGroupforResources:
-    Description: Use this group to allow fyde Access Proxy access to internal resources
+    Description: Use this group to allow CloudGen Access Proxy access to internal resources
     Value:
       !Ref envoySg
