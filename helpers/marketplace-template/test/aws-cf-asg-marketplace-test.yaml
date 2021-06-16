@@ -1,0 +1,580 @@
+# This file is auto-generated. Manual changes will be lost.
+# https://github.com/barracuda-cloudgen-access/aws-templates
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >-
+  CloudGen Access Proxy Cloudformation template for AWS Marketplace
+
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: CloudGen Access Configuration
+        Parameters:
+          - AccessProxyToken
+          - AccessProxyPublicPort
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VpcId
+          - EC2Subnets
+          - NLBPublicSubnets
+          - EC2AssociatePublicIpAddress
+      - Label:
+          default: Amazon EC2 Configuration
+        Parameters:
+          - EC2ASGDesiredCapacity
+          - EC2InstanceType
+          - EC2KeyName
+      - Label:
+          default: Logging
+        Parameters:
+          - AccessProxyLoglevel
+          - CloudWatchLogs
+          - CloudWatchLogsRetentionInDays
+    ParameterLabels:
+      AccessProxyToken:
+        default: Access Proxy Token
+      AccessProxyPublicPort:
+        default: Access Proxy public port
+      VpcId:
+        default: Vpc Id
+      EC2Subnets:
+        default: Subnets for instances
+      NLBPublicSubnets:
+        default: Subnets for Network Load Balancer
+      EC2AssociatePublicIpAddress:
+        default: Associate Public Ip Address to instances
+      EC2ASGDesiredCapacity:
+        default: Number of desired instances
+      EC2InstanceType:
+        default: Instance type to use for the proxy
+      EC2KeyName:
+        default: SSH Public Key Name for the instance
+      AccessProxyLoglevel:
+        default: Log level for the application
+      CloudWatchLogs:
+        default: Send logs to CloudWatch
+      CloudWatchLogsRetentionInDays:
+        default: Log Retention
+
+Parameters:
+
+  AccessProxyToken:
+    Description: >-
+      CloudGen Access Proxy Token for this proxy (obtained from the console after
+      proxy creation).
+    Type: String
+    MinLength: '20'
+    NoEcho: true
+    AllowedPattern: ^https:\/\/.*\.fyde\.com\/proxies.*proxy_auth_token.*$
+
+  AccessProxyPublicPort:
+    Description: >-
+      Public port for this proxy (must match the value configured in the console for
+      the proxy).
+    Default: 443
+    Type: Number
+    MinValue: 1
+    MaxValue: 65535
+
+  VpcId:
+    Description: Select the Virtual Private Cloud (VPC) to use.
+    Type: AWS::EC2::VPC::Id
+    ConstraintDescription: >-
+      must be the VPC Id of an existing Virtual Private Cloud. Outbound traffic
+      for the default security group associated with this VPC should be enabled.
+
+  NLBPublicSubnets:
+    Description: >-
+      Select the Public Subnet Ids to use for the Network Load Balancer.
+      NOTE: Use Public Subnets only.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  EC2Subnets:
+    Description: >-
+      Select the Subnet Ids to use for the EC2 instances.
+      NOTE: Use Private Subnets with NAT Gateway configured or Public Subnets.
+    Type: List<AWS::EC2::Subnet::Id>
+
+  EC2AssociatePublicIpAddress:
+    Description: >-
+      Default is false. If true, each instance receives a unique public IP address.
+      Required when the instances are deployed in a public network.
+    Type: String
+    Default: false
+    AllowedValues:
+      - false
+      - true
+
+  EC2ASGDesiredCapacity:
+    Description: Enter the desired capacity for the ASG
+    Default: 2
+    Type: Number
+    MinValue: 1
+
+  EC2KeyName:
+    Description: >-
+      EC2 instance key name
+      Optional: Selecting existing EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+
+  EC2InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t2.small
+      - t2.medium
+      - t2.large
+
+  CloudWatchLogs:
+    Description: >-
+      Send '/var/log/message' logs to CloudWatch.
+      Default is true.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  CloudWatchLogsRetentionInDays:
+    Description: Days to keep CloudGen Access logs (0 = never delete).
+    Type: Number
+    Default: 7
+    AllowedValues:
+      - 0
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+
+  AccessProxyLoglevel:
+    Description: >-
+      Set the CloudGen Access Proxy orchestrator log level.
+      Default is info.
+    Type: String
+    Default: info
+    AllowedValues:
+      - debug
+      - info
+      - warning
+      - error
+      - critical
+
+Conditions:
+
+  CloudWatchLogsEnabled: !Equals [!Ref CloudWatchLogs, true]
+  CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
+  RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
+Mappings:
+  RegionMap:
+    af-south-1:
+      ImageId: ami-placeholder
+    ap-east-1:
+      ImageId: ami-placeholder
+    ap-northeast-1:
+      ImageId: ami-placeholder
+    ap-northeast-2:
+      ImageId: ami-placeholder
+    ap-northeast-3:
+      ImageId: ami-placeholder
+    ap-south-1:
+      ImageId: ami-placeholder
+    ap-southeast-1:
+      ImageId: ami-placeholder
+    ap-southeast-2:
+      ImageId: ami-placeholder
+    ca-central-1:
+      ImageId: ami-placeholder
+    eu-central-1:
+      ImageId: ami-placeholder
+    eu-north-1:
+      ImageId: ami-placeholder
+    eu-south-1:
+      ImageId: ami-placeholder
+    eu-west-1:
+      ImageId: ami-placeholder
+    eu-west-2:
+      ImageId: ami-placeholder
+    eu-west-3:
+      ImageId: ami-placeholder
+    me-south-1:
+      ImageId: ami-placeholder
+    sa-east-1:
+      ImageId: ami-placeholder
+    us-east-1:
+      ImageId: ami-placeholder
+    us-east-2:
+      ImageId: ami-placeholder
+    us-west-1:
+      ImageId: ami-placeholder
+    us-west-2:
+      ImageId: ami-placeholder
+
+Resources:
+
+#
+# Secret
+#
+
+  AccessEnrollmentToken:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_enrollment_token']]
+      Description: CloudGen Access Proxy Token
+      SecretString: !Ref AccessProxyToken
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+#
+# NLB
+#
+
+  NLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: !Ref NLBPublicSubnets
+      Scheme: internet-facing
+      Type: network
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+  NLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup
+      LoadBalancerArn: !Ref NLB
+      Port: !Ref AccessProxyPublicPort
+      Protocol: TCP
+
+  NLBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 3
+      Port: !Ref AccessProxyPublicPort
+      Protocol: TCP
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+#
+# Security Groups
+#
+
+  InboundEC2SecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow inbound access to EC2 instances on the configured port
+      # https://docs.aws.amazon.com/elasticloadbalancing/latest/network/target-group-register-targets.html#target-security-groups
+      # You cannot allow traffic from clients to targets through the load balancer using the security groups for the clients in the security groups for the targets.
+      # Use the client CIDR blocks in the target security groups instead.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref AccessProxyPublicPort
+          ToPort: !Ref AccessProxyPublicPort
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+  ResourceSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >-
+        Use this group to allow CloudGenAccessProxy access to internal
+        resources
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+  RedisSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: RedisRequired
+    Properties:
+      GroupDescription: Used to allow CloudGenAccessProxy access to redis
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+  RedisSecGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: RedisRequired
+    Properties:
+      FromPort: 6379
+      ToPort: 6379
+      GroupId: !Ref RedisSecGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref RedisSecGroup
+
+#
+# CloudGen Access Proxy Instance(s)
+#
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 1
+    Properties:
+      VPCZoneIdentifier: !Ref EC2Subnets
+      Cooldown: '120'
+      LaunchConfigurationName: !Ref LaunchConfig
+      MaxSize: !Ref EC2ASGDesiredCapacity
+      MinSize: !Ref EC2ASGDesiredCapacity
+      DesiredCapacity: !Ref EC2ASGDesiredCapacity
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      TargetGroupARNs:
+        - !Ref NLBTargetGroup
+      TerminationPolicies:
+        - OldestInstance
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+          PropagateAtLaunch: true
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+          PropagateAtLaunch: true
+        - Key: Redis
+          Value: !If [RedisRequired, 'true', 'false']
+          PropagateAtLaunch: true
+
+  LaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: !Ref EC2AssociatePublicIpAddress
+      KeyName: !Ref EC2KeyName
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - Ref: AWS::Region
+          - ImageId
+      SecurityGroups:
+        - !Ref InboundEC2SecGroup
+        - !Ref ResourceSecGroup
+        - !If [RedisRequired, !Ref RedisSecGroup, !Ref 'AWS::NoValue']
+      InstanceType: !Ref EC2InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      UserData:
+        Fn::Base64:
+          "Fn::Join":
+            # This needs double quotes to work
+            - "\n"
+            -   - '#!/bin/bash'
+                - ''
+                - set -xeuo pipefail
+                - ''
+                # Install CloudWatch Agent
+                - !If [CloudWatchLogsEnabled, curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
+                      | bash -s -- \, Ref 'AWS::NoValue']
+                - !If [CloudWatchLogsEnabled, !Sub '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy"
+                      \', Ref 'AWS::NoValue']
+                - !If [CloudWatchLogsEnabled, !Sub '  -r "${AWS::Region}"', !Ref 'AWS::NoValue']
+                - ''
+                # Install CloudGen Access Proxy
+                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s
+                  -- \
+                - !If [RedisRequired, !Sub '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
+                      \', !Ref 'AWS::NoValue']
+                - !If [RedisRequired, !Sub '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}"
+                      \', !Ref 'AWS::NoValue']
+                - '  -u \'
+                - !Sub '  -p "${AccessProxyPublicPort}" \'
+                - !Sub '  -l "${AccessProxyLoglevel}" \'
+                - !Sub
+                    - '  -e "FYDE_PREFIX=${Value}_"'
+                    - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
+                - ''
+                # Harden instance and reboot
+                - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
+                - shutdown -r now
+
+#
+# IAM
+#
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+
+  InstancePolicySecrets:
+    Type: AWS::IAM::Policy
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - I3042
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-Instance-Policy-Secrets'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:DescribeSecret
+              - secretsmanager:GetSecretValue
+            Resource: !Sub
+              - 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Value}_*'
+              - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
+          - Effect: Allow
+            Action:
+              - secretsmanager:ListSecrets
+            Resource: '*'
+      Roles:
+        - !Ref InstanceRole
+
+  InstancePolicyRedis:
+    Type: AWS::IAM::Policy
+    Condition: RedisRequired
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - I3042
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-Instance-Policy-Redis'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: elasticache:DescribeCacheClusters
+            Resource: !Sub 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:replicationgroup:${RedisCacheReplicationGroup}'
+      Roles:
+        - !Ref InstanceRole
+
+  InstancePolicyCloudWatchLogsEC2:
+    Type: AWS::IAM::Policy
+    Condition: CloudWatchLogsEnabled
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-Instance-Policy-CloudWatchLogs-EC2'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !GetAtt CloudWatchLogsGroupEC2.Arn
+          - Effect: Allow
+            Action:
+              - logs:DescribeLogStreams
+            Resource: '*'
+      Roles:
+        - !Ref InstanceRole
+
+#
+# Redis
+#
+
+  RedisCacheReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Condition: RedisRequired
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      CacheNodeType: cache.t2.micro
+      CacheSubnetGroupName: !Ref RedisCacheSubnetGroup
+      Engine: redis
+      NumCacheClusters: 2
+      Port: 6379
+      ReplicationGroupDescription: Redis for CloudGen Access Proxy
+      SecurityGroupIds:
+        - !Ref RedisSecGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
+
+  RedisCacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Condition: RedisRequired
+    Properties:
+      CacheSubnetGroupName: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+      Description: Redis Subnet Group for CloudGen Access Proxy
+      SubnetIds: !Ref EC2Subnets
+
+#
+# CloudWatch Logs
+#
+
+  CloudWatchLogsGroupEC2:
+    Type: AWS::Logs::LogGroup
+    Condition: CloudWatchLogsEnabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/ec2/${AWS::StackName}-CloudGenAccessProxy'
+      RetentionInDays: !If [CloudWatchLogsNoDelete, !Ref "AWS::NoValue", !Ref CloudWatchLogsRetentionInDays]
+
+Outputs:
+
+  NetworkLoadBalancerDnsName:
+    Description: Update the CloudGen Access Proxy in the Console with this DNS name
+    Value: !GetAtt NLB.DNSName
+
+  SecurityGroupforResources:
+    Description: >-
+      Use this group to allow CloudGen Access Proxy access to internal
+      resources
+    Value: !Ref ResourceSecGroup
