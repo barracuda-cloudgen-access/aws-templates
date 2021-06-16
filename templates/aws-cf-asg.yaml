@@ -65,7 +65,8 @@ Parameters:
 
   AccessProxyToken:
     Description: >-
-      CloudGen Access Proxy Token for this proxy (obtained from the console after proxy creation).
+      CloudGen Access Proxy Token for this proxy (obtained from the console after
+      proxy creation).
     Type: String
     MinLength: '20'
     NoEcho: true
@@ -73,7 +74,8 @@ Parameters:
 
   AccessProxyPublicPort:
     Description: >-
-      Public port for this proxy (must match the value configured in the console for the proxy).
+      Public port for this proxy (must match the value configured in the console for
+      the proxy).
     Default: 443
     Type: Number
     MinValue: 1
@@ -202,7 +204,7 @@ Resources:
   AccessEnrollmentToken:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}_enrollment_token' ] ]
+      Name: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_enrollment_token']]
       Description: CloudGen Access Proxy Token
       SecretString: !Ref AccessProxyToken
       Tags:
@@ -278,7 +280,9 @@ Resources:
   ResourceSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Use this group to allow CloudGenAccessProxy access to internal resources
+      GroupDescription: >-
+        Use this group to allow CloudGenAccessProxy access to internal
+        resources
       VpcId: !Ref VpcId
       Tags:
         - Key: Name
@@ -319,7 +323,7 @@ Resources:
         MaxBatchSize: 1
     Properties:
       VPCZoneIdentifier: !Ref EC2Subnets
-      Cooldown: "120"
+      Cooldown: '120'
       LaunchConfigurationName: !Ref LaunchConfig
       MaxSize: !Ref EC2ASGDesiredCapacity
       MinSize: !Ref EC2ASGDesiredCapacity
@@ -338,7 +342,7 @@ Resources:
           Value: CloudGenAccessProxyASG
           PropagateAtLaunch: true
         - Key: Redis
-          Value: !If [ RedisRequired, 'true', 'false' ]
+          Value: !If [RedisRequired, 'true', 'false']
           PropagateAtLaunch: true
 
   LaunchConfig:
@@ -350,33 +354,42 @@ Resources:
       SecurityGroups:
         - !Ref InboundEC2SecGroup
         - !Ref ResourceSecGroup
-        - !If [ RedisRequired, !Ref RedisSecGroup, !Ref 'AWS::NoValue' ]
+        - !If [RedisRequired, !Ref RedisSecGroup, !Ref 'AWS::NoValue']
       InstanceType: !Ref EC2InstanceType
       IamInstanceProfile: !Ref InstanceProfile
       UserData:
         Fn::Base64:
-          !Join
+          "Fn::Join":
             # This needs double quotes to work
             - "\n"
-            - - '#!/bin/bash'
-              - 'set -xeuo pipefail'
-              # Install CloudWatch Agent
-              - !If [ CloudWatchLogsEnabled, 'curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs" | bash -s -- \', Ref 'AWS::NoValue' ]
-              - !If [ CloudWatchLogsEnabled, !Sub '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy" \', Ref 'AWS::NoValue' ]
-              - !If [ CloudWatchLogsEnabled, !Sub '  -r "${AWS::Region}"', !Ref 'AWS::NoValue' ]
-              # Install CloudGen Access Proxy
-              - 'curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s -- \'
-              - !If [ RedisRequired, !Sub '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}" \', !Ref 'AWS::NoValue' ]
-              - !If [ RedisRequired, !Sub '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}" \', !Ref 'AWS::NoValue' ]
-              - '  -u \'
-              - !Sub '  -p "${AccessProxyPublicPort}" \'
-              - !Sub '  -l "${AccessProxyLoglevel}" \'
-              - !Sub
-                - '  -e "FYDE_PREFIX=${Value}_"'
-                - { Value: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}' ] ] }
-              # Harden instance and reboot
-              - 'curl -sL "https://url.fyde.me/harden-linux" | bash -s --'
-              - 'shutdown -r now'
+            -   - '#!/bin/bash'
+                - ''
+                - set -xeuo pipefail
+                - ''
+                # Install CloudWatch Agent
+                - !If [CloudWatchLogsEnabled, curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
+                    | bash -s -- \, Ref 'AWS::NoValue']
+                - !If [CloudWatchLogsEnabled, !Sub '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy"
+                      \', Ref 'AWS::NoValue']
+                - !If [CloudWatchLogsEnabled, !Sub '  -r "${AWS::Region}"', !Ref 'AWS::NoValue']
+                - ''
+                # Install CloudGen Access Proxy
+                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s
+                  -- \
+                - !If [RedisRequired, !Sub '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
+                      \', !Ref 'AWS::NoValue']
+                - !If [RedisRequired, !Sub '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}"
+                      \', !Ref 'AWS::NoValue']
+                - '  -u \'
+                - !Sub '  -p "${AccessProxyPublicPort}" \'
+                - !Sub '  -l "${AccessProxyLoglevel}" \'
+                - !Sub
+                  - '  -e "FYDE_PREFIX=${Value}_"'
+                  - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
+                - ''
+                # Harden instance and reboot
+                - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
+                - shutdown -r now
 
 #
 # IAM
@@ -420,7 +433,7 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !Sub
               - 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Value}_*'
-              - { Value: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}' ] ] }
+              - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
           - Effect: Allow
             Action:
               - secretsmanager:ListSecrets
@@ -513,16 +526,16 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/ec2/${AWS::StackName}-CloudGenAccessProxy'
-      RetentionInDays: !If [ CloudWatchLogsNoDelete, !Ref "AWS::NoValue", !Ref CloudWatchLogsRetentionInDays ]
+      RetentionInDays: !If [CloudWatchLogsNoDelete, !Ref "AWS::NoValue", !Ref CloudWatchLogsRetentionInDays]
 
 Outputs:
 
   NetworkLoadBalancerDnsName:
     Description: Update the CloudGen Access Proxy in the Console with this DNS name
-    Value:
-      !GetAtt NLB.DNSName
+    Value: !GetAtt NLB.DNSName
 
   SecurityGroupforResources:
-    Description: Use this group to allow CloudGen Access Proxy access to internal resources
-    Value:
-      !Ref ResourceSecGroup
+    Description: >-
+      Use this group to allow CloudGen Access Proxy access to internal
+      resources
+    Value: !Ref ResourceSecGroup
