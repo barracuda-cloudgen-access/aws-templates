@@ -9,6 +9,10 @@ name: Linter
 on:
   pull_request:
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
 
   linter:
@@ -24,6 +28,7 @@ jobs:
       - name: Lint Code
         uses: github/super-linter@v4.2.2
         env:
-          VALIDATE_ALL_CODEBASE: true
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_PYTHON_MYPY: false
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
