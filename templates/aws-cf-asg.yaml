@@ -422,6 +422,11 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: /
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
 
   InstancePolicySecrets:
     Type: AWS::IAM::Policy
@@ -522,6 +527,11 @@ Resources:
       CacheSubnetGroupName: !Sub '${AWS::StackName}-CloudGenAccessProxy'
       Description: Redis Subnet Group for CloudGen Access Proxy
       SubnetIds: !Ref EC2Subnets
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
 
 #
 # CloudWatch Logs
