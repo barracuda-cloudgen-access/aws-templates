@@ -270,6 +270,9 @@ Resources:
           FromPort: !Ref AccessProxyPublicPort
           ToPort: !Ref AccessProxyPublicPort
           CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref VpcId
       Tags:
         - Key: Name
