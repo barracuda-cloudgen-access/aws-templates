@@ -290,6 +290,13 @@ Resources:
         - Key: Application
           Value: CloudGenAccessProxyASG
 
+  ResourceSecGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ResourceSecGroup
+      IpProtocol: '-1'
+      DestinationSecurityGroupId: !Ref ResourceSecGroup
+
   RedisSecGroup:
     Type: AWS::EC2::SecurityGroup
     Condition: RedisRequired
