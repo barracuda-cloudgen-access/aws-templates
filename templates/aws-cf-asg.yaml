@@ -270,6 +270,9 @@ Resources:
           FromPort: !Ref AccessProxyPublicPort
           ToPort: !Ref AccessProxyPublicPort
           CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref VpcId
       Tags:
         - Key: Name
@@ -289,6 +292,13 @@ Resources:
           Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
         - Key: Application
           Value: CloudGenAccessProxyASG
+
+  ResourceSecGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ResourceSecGroup
+      IpProtocol: '-1'
+      DestinationSecurityGroupId: !Ref ResourceSecGroup
 
   RedisSecGroup:
     Type: AWS::EC2::SecurityGroup
@@ -311,6 +321,14 @@ Resources:
       GroupId: !Ref RedisSecGroup
       IpProtocol: tcp
       SourceSecurityGroupId: !Ref RedisSecGroup
+
+  RedisSecGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: RedisRequired
+    Properties:
+      GroupId: !Ref RedisSecGroup
+      IpProtocol: '-1'
+      DestinationSecurityGroupId: !Ref RedisSecGroup
 
 #
 # CloudGen Access Proxy Instance(s)
@@ -414,6 +432,11 @@ Resources:
             Action:
               - sts:AssumeRole
       Path: /
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
 
   InstancePolicySecrets:
     Type: AWS::IAM::Policy
@@ -514,6 +537,11 @@ Resources:
       CacheSubnetGroupName: !Sub '${AWS::StackName}-CloudGenAccessProxy'
       Description: Redis Subnet Group for CloudGen Access Proxy
       SubnetIds: !Ref EC2Subnets
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+        - Key: Application
+          Value: CloudGenAccessProxyASG
 
 #
 # CloudWatch Logs
