@@ -312,6 +312,14 @@ Resources:
       IpProtocol: tcp
       SourceSecurityGroupId: !Ref RedisSecGroup
 
+  RedisSecGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: RedisRequired
+    Properties:
+      GroupId: !Ref RedisSecGroup
+      IpProtocol: '-1'
+      DestinationSecurityGroupId: !Ref RedisSecGroup
+
 #
 # CloudGen Access Proxy Instance(s)
 #
