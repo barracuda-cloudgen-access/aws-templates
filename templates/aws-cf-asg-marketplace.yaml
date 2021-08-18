@@ -15,6 +15,7 @@ Metadata:
         Parameters:
           - AccessProxyToken
           - AccessProxyPublicPort
+          - AccessProxyAllowPublicAccess
       - Label:
           default: Network Configuration
         Parameters:
@@ -39,6 +40,8 @@ Metadata:
         default: Access Proxy Token
       AccessProxyPublicPort:
         default: Access Proxy public port
+      AccessProxyAllowPublicAccess:
+        default: Allow public access to Access Proxy
       VpcId:
         default: Vpc Id
       EC2Subnets:
@@ -80,6 +83,13 @@ Parameters:
     MinValue: 1
     MaxValue: 65535
 
+  AccessProxyAllowPublicAccess:
+    Description: (!!!) Please select 'true' to allow external connections (!!!)
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
   VpcId:
     Description: Select the Virtual Private Cloud (VPC) to use.
     Type: AWS::EC2::VPC::Id
@@ -182,6 +192,10 @@ Parameters:
 
 Conditions:
 
+  AccessProxyAllowPublicAccessTrue:
+    Fn::Equals:
+      - Ref: AccessProxyAllowPublicAccess
+      - true
   CloudWatchLogsEnabled: !Equals [!Ref CloudWatchLogs, true]
   CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
   RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
@@ -304,7 +318,11 @@ Resources:
         - IpProtocol: tcp
           FromPort: !Ref AccessProxyPublicPort
           ToPort: !Ref AccessProxyPublicPort
-          CidrIp: 0.0.0.0/0
+          CidrIp:
+            Fn::If:
+              - AccessProxyAllowPublicAccessTrue
+              - 0.0.0.0/0
+              - Ref: AWS::NoValue
       SecurityGroupEgress:
         - IpProtocol: '-1'
           CidrIp: 0.0.0.0/0

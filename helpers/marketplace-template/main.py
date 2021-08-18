@@ -61,10 +61,23 @@ def update_key(args_dict, key_to_update, replace_value):
     for key, value in args_dict.items():
         if isinstance(value, dict):
             args_dict[key] = update_key(value, key_to_update, replace_value)
+
     if key_to_update in args_dict:
         args_dict[key_to_update] = replace_value
     # print(args_dict)
+
     return args_dict
+
+
+def insert_if_found(obj, key, new_item):
+    """
+    Searches for item and inserts tupple from received obj when found
+    """
+
+    id_temp = next((index for index, value in enumerate(obj) if key in value), -1)
+
+    if id_temp >= 0:
+        obj.insert(id_temp + 1, *new_item)
 
 
 def main():
@@ -133,6 +146,54 @@ def main():
     ]
 
     del template["Parameters"]["EC2AMI"]
+
+    # Add AccessProxyAllowPublicAccess parameter
+
+    for index, key in enumerate(
+        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterGroups"]
+    ):
+        for key2 in key["Parameters"]:
+            if "AccessProxyPublicPort" in key2:
+                key["Parameters"].append("AccessProxyAllowPublicAccess")
+
+    insert_if_found(
+        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterLabels"],
+        "AccessProxyPublicPort",
+        (
+            "AccessProxyAllowPublicAccess",
+            {"default": "Allow public access to Access Proxy"},
+        ),
+    )
+
+    insert_if_found(
+        template["Parameters"],
+        "AccessProxyPublicPort",
+        (
+            "AccessProxyAllowPublicAccess",
+            {
+                "Description": "(!!!) Please select 'true' to allow external connections (!!!)",
+                "Type": "String",
+                "Default": "false",
+                "AllowedValues": ["true", "false"],
+            },
+        ),
+    )
+
+    template["Conditions"].insert(
+        0,
+        "AccessProxyAllowPublicAccessTrue",
+        {"Fn::Equals": [{"Ref": "AccessProxyAllowPublicAccess"}, True]},
+    )
+
+    template["Resources"]["InboundEC2SecGroup"]["Properties"]["SecurityGroupIngress"][
+        0
+    ]["CidrIp"] = {
+        "Fn::If": [
+            "AccessProxyAllowPublicAccessTrue",
+            "0.0.0.0/0",
+            {"Ref": "AWS::NoValue"},
+        ]
+    }
 
     # Add disclaimer and result to file
     with open(args.out, "w+") as tmpl_dest:
