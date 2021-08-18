@@ -36,7 +36,9 @@ git-clean:
 	fi
 
 lint:
-	find ./helpers -name "*.py" -type f -print0 -exec black {} --verbose \;
+	find ./helpers -name "*.py" -type f -print0 \
+		-exec black {} --verbose \; \
+		-exec isort {} --show-files \;
 	act -j linter --env-file <(echo "RUN_LOCAL=true")
 
 template-set:
