@@ -28,21 +28,21 @@ class OrderedDictInsert(OrderedDict):
                 self.move_to_end(k)
 
 
-def get_latest_amazon_ami():
+def get_latest_amazon_ami(name, owner, region):
     """
     Get latest Amazon AMI
     """
 
-    client = boto3.client("ec2", region_name="us-east-1")
+    client = boto3.client("ec2", region_name=region)
 
     response = client.describe_images(
         Filters=[
-            {"Name": "name", "Values": ["amzn2-ami-hvm*"]},
+            {"Name": "name", "Values": [name]},
             {"Name": "virtualization-type", "Values": ["hvm"]},
             {"Name": "architecture", "Values": ["x86_64*"]},
             {"Name": "root-device-type", "Values": ["ebs"]},
         ],
-        Owners=["amazon"],
+        Owners=[owner],
     )
 
     # Sort on Creation date Desc
@@ -64,14 +64,13 @@ def update_key(args_dict, key_to_update, replace_value):
 
     if key_to_update in args_dict:
         args_dict[key_to_update] = replace_value
-    # print(args_dict)
 
     return args_dict
 
 
-def insert_if_found(obj, key, new_item):
+def insert_if_found_ordered_dict(obj, key, new_item):
     """
-    Searches for item and inserts tupple from received obj when found
+    Searches for key and inserts new_item from received obj when found
     """
 
     id_temp = next((index for index, value in enumerate(obj) if key in value), -1)
@@ -80,12 +79,35 @@ def insert_if_found(obj, key, new_item):
         obj.insert(id_temp + 1, *new_item)
 
 
+def insert_if_found_list(obj, search_key, search_item, new_item):
+    """
+    Searches for search_parameter on search_key and inserts new_item
+    from received obj when found
+    """
+
+    for _, key_temp in enumerate(obj):
+        for key2_temp in key_temp[search_item]:
+            if search_key in key2_temp:
+                key_temp[search_item].append(new_item)
+
+
+def replace_if_found_ordered_dict(obj, key, new_item):
+    """
+    Searches for key and replaces new_item from received obj when found
+    """
+
+    id_temp = next((index for index, value in enumerate(obj) if key in value), -1)
+
+    if id_temp >= 0:
+        obj[id_temp + 1] = new_item
+
+
 def main():
     """
     Run transformations to create marketplace template
     """
 
-    # Set variables
+    # Set arguments
     parser = argparse.ArgumentParser(description="Create marketplace template")
     parser.add_argument(
         "--out",
@@ -101,8 +123,28 @@ def main():
     )
     args = parser.parse_args()
 
+    # Variables
     source_file = "templates/aws-cf-asg.yaml"
     mappings_file = "helpers/marketplace-template/mappings.json"
+    ami = {
+        "name": "amazonlinux-2-cga-proxy-base_*",
+        "owner": "766535289950",
+        "region": "us-east-1",
+    }
+    cga_config = {
+        "cloudwatch": {
+            "url": "https://url.fyde.me/config-ec2-cloudwatch-logs",
+            "file": "/usr/local/config-ec2-cloudwatch-logs.sh",
+        },
+        "proxy": {
+            "url": "https://url.fyde.me/install-fyde-proxy-linux",
+            "file": "/usr/local/install-fyde-proxy-linux.sh",
+        },
+        "harden": {
+            "url": "https://url.fyde.me/harden-linux",
+            "file": "/usr/local/harden-linux.sh",
+        },
+    }
 
     # Read yaml
     with open(source_file, "r") as tmpl_origin:
@@ -119,7 +161,7 @@ def main():
     if args.no_creds:
         image_id = "ami-placeholder"
     else:
-        image_id = get_latest_amazon_ami()
+        image_id = get_latest_amazon_ami(ami["name"], ami["owner"], ami["region"])
 
     # Add mappings and replace ami
     with open(mappings_file, "r") as mappings:
@@ -148,15 +190,14 @@ def main():
     del template["Parameters"]["EC2AMI"]
 
     # Add AccessProxyAllowPublicAccess parameter
+    insert_if_found_list(
+        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterGroups"],
+        "AccessProxyPublicPort",
+        "Parameters",
+        "AccessProxyAllowPublicAccess",
+    )
 
-    for index, key in enumerate(
-        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterGroups"]
-    ):
-        for key2 in key["Parameters"]:
-            if "AccessProxyPublicPort" in key2:
-                key["Parameters"].append("AccessProxyAllowPublicAccess")
-
-    insert_if_found(
+    insert_if_found_ordered_dict(
         template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterLabels"],
         "AccessProxyPublicPort",
         (
@@ -165,7 +206,7 @@ def main():
         ),
     )
 
-    insert_if_found(
+    insert_if_found_ordered_dict(
         template["Parameters"],
         "AccessProxyPublicPort",
         (
@@ -194,6 +235,94 @@ def main():
             {"Ref": "AWS::NoValue"},
         ]
     }
+
+    # Add AccessProxyGetLatestScripts parameter
+    insert_if_found_list(
+        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterGroups"],
+        "AccessProxyAllowPublicAccess",
+        "Parameters",
+        "AccessProxyGetLatestScripts",
+    )
+
+    insert_if_found_ordered_dict(
+        template["Metadata"]["AWS::CloudFormation::Interface"]["ParameterLabels"],
+        "AccessProxyAllowPublicAccess",
+        (
+            "AccessProxyGetLatestScripts",
+            {"default": "Get the latest Access Proxy install scripts"},
+        ),
+    )
+
+    insert_if_found_ordered_dict(
+        template["Parameters"],
+        "AccessProxyAllowPublicAccess",
+        (
+            "AccessProxyGetLatestScripts",
+            {
+                "Description": "Select 'true' to get the latest install scripts."
+                + "When 'false' the scripts included with the AMI will be used.",
+                "Type": "String",
+                "Default": "false",
+                "AllowedValues": ["true", "false"],
+            },
+        ),
+    )
+
+    template["Conditions"].insert(
+        0,
+        "AccessProxyGetLatestScriptsTrue",
+        {"Fn::Equals": [{"Ref": "AccessProxyGetLatestScripts"}, True]},
+    )
+
+    replace_if_found_ordered_dict(
+        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
+            "Fn::Join"
+        ][1],
+        "# Install CloudWatch Agent",
+        {
+            "Fn::If": [
+                "CloudWatchLogsEnabled",
+                {
+                    "Fn::If": [
+                        "AccessProxyGetLatestScriptsTrue",
+                        'curl -sL "{}" | bash -s -- \\'.format(
+                            cga_config["cloudwatch"]["url"]
+                        ),
+                        "{} \\".format(cga_config["cloudwatch"]["file"]),
+                    ]
+                },
+                {"Ref": "AWS::NoValue"},
+            ]
+        },
+    )
+
+    replace_if_found_ordered_dict(
+        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
+            "Fn::Join"
+        ][1],
+        "# Install CloudGen Access Proxy",
+        {
+            "Fn::If": [
+                "AccessProxyGetLatestScriptsTrue",
+                'curl -sL "{}" | bash -s -- \\'.format(cga_config["proxy"]["url"]),
+                "{} \\".format(cga_config["proxy"]["file"]),
+            ]
+        },
+    )
+
+    replace_if_found_ordered_dict(
+        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
+            "Fn::Join"
+        ][1],
+        "# Harden instance and reboot",
+        {
+            "Fn::If": [
+                "AccessProxyGetLatestScriptsTrue",
+                'curl -sL "{}" | bash -s --'.format(cga_config["harden"]["url"]),
+                cga_config["harden"]["file"],
+            ]
+        },
+    )
 
     # Add disclaimer and result to file
     with open(args.out, "w+") as tmpl_dest:
