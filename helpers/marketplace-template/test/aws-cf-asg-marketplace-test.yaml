@@ -16,6 +16,7 @@ Metadata:
           - AccessProxyToken
           - AccessProxyPublicPort
           - AccessProxyAllowPublicAccess
+          - AccessProxyGetLatestScripts
       - Label:
           default: Network Configuration
         Parameters:
@@ -42,6 +43,8 @@ Metadata:
         default: Access Proxy public port
       AccessProxyAllowPublicAccess:
         default: Allow public access to Access Proxy
+      AccessProxyGetLatestScripts:
+        default: Get the latest Access Proxy install scripts
       VpcId:
         default: Vpc Id
       EC2Subnets:
@@ -85,6 +88,14 @@ Parameters:
 
   AccessProxyAllowPublicAccess:
     Description: (!!!) Please select 'true' to allow external connections (!!!)
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  AccessProxyGetLatestScripts:
+    Description: Select 'true' to get the latest install scripts.When 'false' the
+      scripts included with the AMI will be used.
     Type: String
     Default: 'false'
     AllowedValues:
@@ -192,6 +203,10 @@ Parameters:
 
 Conditions:
 
+  AccessProxyGetLatestScriptsTrue:
+    Fn::Equals:
+      - Ref: AccessProxyGetLatestScripts
+      - true
   AccessProxyAllowPublicAccessTrue:
     Fn::Equals:
       - Ref: AccessProxyAllowPublicAccess
@@ -438,32 +453,55 @@ Resources:
             # This needs double quotes to work
             - "\n"
             -   - '#!/bin/bash'
-                - ''
                 - set -xeuo pipefail
                 - ''
-                # Install CloudWatch Agent
-                - !If [CloudWatchLogsEnabled, curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
-                      | bash -s -- \, Ref 'AWS::NoValue']
-                - !If [CloudWatchLogsEnabled, !Sub '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy"
-                      \', Ref 'AWS::NoValue']
-                - !If [CloudWatchLogsEnabled, !Sub '  -r "${AWS::Region}"', !Ref 'AWS::NoValue']
+                - '# Install CloudWatch Agent'
+                - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - Fn::If:
+                        - AccessProxyGetLatestScriptsTrue
+                        - curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
+                          | bash -s -- \
+                        - /usr/local/config-ec2-cloudwatch-logs.sh \
+                    - Ref: AWS::NoValue
+                - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - Fn::Sub: '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy"
+                        \'
+                    - Ref: 'AWS::NoValue'
+                - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - Fn::Sub: '  -r "${AWS::Region}"'
+                    - Ref: 'AWS::NoValue'
                 - ''
-                # Install CloudGen Access Proxy
-                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s
-                  -- \
-                - !If [RedisRequired, !Sub '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
-                      \', !Ref 'AWS::NoValue']
-                - !If [RedisRequired, !Sub '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}"
-                      \', !Ref 'AWS::NoValue']
+                - '# Install CloudGen Access Proxy'
+                - Fn::If:
+                    - AccessProxyGetLatestScriptsTrue
+                    - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash
+                      -s -- \
+                    - /usr/local/install-fyde-proxy-linux.sh \
+                - Fn::If:
+                    - RedisRequired
+                    - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
+                        \'
+                    - Ref: 'AWS::NoValue'
+                - Fn::If:
+                    - RedisRequired
+                    - Fn::Sub: '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}"
+                        \'
+                    - Ref: 'AWS::NoValue'
                 - '  -u \'
-                - !Sub '  -p "${AccessProxyPublicPort}" \'
-                - !Sub '  -l "${AccessProxyLoglevel}" \'
-                - !Sub
+                - Fn::Sub: '  -p "${AccessProxyPublicPort}" \'
+                - Fn::Sub: '  -l "${AccessProxyLoglevel}" \'
+                - Fn::Sub:
                     - '  -e "FYDE_PREFIX=${Value}_"'
-                    - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
+                    - Value: !Join ['_', Fn::Split: ['-', Fn::Sub: '${AWS::StackName}']]
                 - ''
-                # Harden instance and reboot
-                - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
+                - '# Harden instance and reboot'
+                - Fn::If:
+                    - AccessProxyGetLatestScriptsTrue
+                    - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
+                    - /usr/local/harden-linux.sh
                 - shutdown -r now
 
 #

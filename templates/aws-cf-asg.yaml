@@ -381,31 +381,42 @@ Resources:
             # This needs double quotes to work
             - "\n"
             -   - '#!/bin/bash'
-                - ''
                 - set -xeuo pipefail
                 - ''
-                # Install CloudWatch Agent
-                - !If [CloudWatchLogsEnabled, curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
-                    | bash -s -- \, Ref 'AWS::NoValue']
-                - !If [CloudWatchLogsEnabled, !Sub '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy"
-                      \', Ref 'AWS::NoValue']
-                - !If [CloudWatchLogsEnabled, !Sub '  -r "${AWS::Region}"', !Ref 'AWS::NoValue']
+                - '# Install CloudWatch Agent'
+                - Fn::If:
+                  - CloudWatchLogsEnabled
+                  - >-
+                    curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
+                    | bash -s -- \
+                  - Ref: 'AWS::NoValue'
+                - Fn::If:
+                  - CloudWatchLogsEnabled
+                  - Fn::Sub: '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy" \'
+                  - Ref: 'AWS::NoValue'
+                - Fn::If:
+                  - CloudWatchLogsEnabled
+                  - Fn::Sub: '  -r "${AWS::Region}"'
+                  - Ref: 'AWS::NoValue'
                 - ''
-                # Install CloudGen Access Proxy
-                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s
-                  -- \
-                - !If [RedisRequired, !Sub '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
-                      \', !Ref 'AWS::NoValue']
-                - !If [RedisRequired, !Sub '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}"
-                      \', !Ref 'AWS::NoValue']
+                - '# Install CloudGen Access Proxy'
+                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s -- \
+                - Fn::If:
+                  - RedisRequired
+                  - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}" \'
+                  - Ref: 'AWS::NoValue'
+                - Fn::If:
+                  - RedisRequired
+                  - Fn::Sub: '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}" \'
+                  - Ref: 'AWS::NoValue'
                 - '  -u \'
-                - !Sub '  -p "${AccessProxyPublicPort}" \'
-                - !Sub '  -l "${AccessProxyLoglevel}" \'
-                - !Sub
+                - Fn::Sub: '  -p "${AccessProxyPublicPort}" \'
+                - Fn::Sub:  '  -l "${AccessProxyLoglevel}" \'
+                - Fn::Sub:
                   - '  -e "FYDE_PREFIX=${Value}_"'
-                  - {Value: !Join ['_', !Split ['-', !Sub '${AWS::StackName}']]}
+                  - Value: !Join ['_', Fn::Split: ['-', Fn::Sub: '${AWS::StackName}']]
                 - ''
-                # Harden instance and reboot
+                - '# Harden instance and reboot'
                 - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
                 - shutdown -r now
 
