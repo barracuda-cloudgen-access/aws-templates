@@ -4,6 +4,7 @@ on: pull_request
 
 jobs:
   template-check:
+    name: Template Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
