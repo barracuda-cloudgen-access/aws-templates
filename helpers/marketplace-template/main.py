@@ -133,15 +133,15 @@ def main():
     }
     cga_config = {
         "cloudwatch": {
-            "url": "https://url.fyde.me/config-ec2-cloudwatch-logs",
+            "url": "https://url.access.barracuda.com/config-ec2-cloudwatch-logs",
             "file": "/usr/local/config-ec2-cloudwatch-logs.sh",
         },
         "proxy": {
-            "url": "https://url.fyde.me/install-fyde-proxy-linux",
-            "file": "/usr/local/install-fyde-proxy-linux.sh",
+            "url": "https://url.access.barracuda.com/proxy-linux",
+            "file": "/usr/local/proxy-linux.sh",
         },
         "harden": {
-            "url": "https://url.fyde.me/harden-linux",
+            "url": "https://url.access.barracuda.com/harden-linux",
             "file": "/usr/local/harden-linux.sh",
         },
     }
