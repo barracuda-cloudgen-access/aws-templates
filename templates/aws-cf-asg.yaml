@@ -203,6 +203,8 @@ Resources:
 
   AccessEnrollmentToken:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Name: !Join ['_', !Split ['-', !Sub '${AWS::StackName}_enrollment_token']]
       Description: CloudGen Access Proxy Token
@@ -387,7 +389,7 @@ Resources:
                 - Fn::If:
                   - CloudWatchLogsEnabled
                   - >-
-                    curl -sL "https://url.fyde.me/config-ec2-cloudwatch-logs"
+                    curl -sL "https://url.access.barracuda.com/config-ec2-cloudwatch-logs"
                     | bash -s -- \
                   - Ref: 'AWS::NoValue'
                 - Fn::If:
@@ -400,7 +402,7 @@ Resources:
                   - Ref: 'AWS::NoValue'
                 - ''
                 - '# Install CloudGen Access Proxy'
-                - curl -sL "https://url.fyde.me/install-fyde-proxy-linux" | bash -s -- \
+                - curl -sL "https://url.access.barracuda.com/proxy-linux" | bash -s -- \
                 - Fn::If:
                   - RedisRequired
                   - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}" \'
@@ -417,7 +419,7 @@ Resources:
                   - Value: !Join ['_', Fn::Split: ['-', Fn::Sub: '${AWS::StackName}']]
                 - ''
                 - '# Harden instance and reboot'
-                - curl -sL "https://url.fyde.me/harden-linux" | bash -s --
+                - curl -sL "https://url.access.barracuda.com/harden-linux" | bash -s --
                 - shutdown -r now
 
 #
