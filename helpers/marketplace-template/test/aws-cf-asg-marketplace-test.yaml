@@ -23,6 +23,7 @@ Metadata:
           - VpcId
           - EC2Subnets
           - NLBPublicSubnets
+          - NLBHealthCheckGracePeriod
           - EC2AssociatePublicIpAddress
       - Label:
           default: Amazon EC2 Configuration
@@ -51,6 +52,8 @@ Metadata:
         default: Subnets for instances
       NLBPublicSubnets:
         default: Subnets for Network Load Balancer
+      NLBHealthCheckGracePeriod:
+        default: Health check grace period for new instances
       EC2AssociatePublicIpAddress:
         default: Associate Public Ip Address to instances
       EC2ASGDesiredCapacity:
@@ -113,6 +116,15 @@ Parameters:
       Select the Public Subnet Ids to use for the Network Load Balancer.
       NOTE: Use Public Subnets only.
     Type: List<AWS::EC2::Subnet::Id>
+
+  NLBHealthCheckGracePeriod:
+    Description: >-
+      Default: 300. The amount of time, in seconds, that Amazon EC2 Auto Scaling waits
+      before checking the health status of new instances.
+    Default: 300
+    Type: Number
+    MinValue: 0
+    MaxValue: 36000
 
   EC2Subnets:
     Description: >-
@@ -424,7 +436,7 @@ Resources:
       MinSize: !Ref EC2ASGDesiredCapacity
       DesiredCapacity: !Ref EC2ASGDesiredCapacity
       HealthCheckType: ELB
-      HealthCheckGracePeriod: 300
+      HealthCheckGracePeriod: !Ref NLBHealthCheckGracePeriod
       TargetGroupARNs:
         - !Ref NLBTargetGroup
       TerminationPolicies:
