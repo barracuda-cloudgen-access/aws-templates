@@ -168,9 +168,9 @@ def main():
         data = update_key(json.load(mappings), "ImageId", image_id)
         template.insert(5, "Mappings", data["Mappings"])
 
-    template["Resources"]["LaunchConfig"]["Properties"]["ImageId"] = {
-        "Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "ImageId"]
-    }
+    template["Resources"]["LaunchTemplate"]["Properties"]["LaunchTemplateData"][
+        "ImageId"
+    ] = {"Fn::FindInMap": ["RegionMap", {"Ref": "AWS::Region"}, "ImageId"]}
 
     # Remove EC2AMI
     for index, key in enumerate(
@@ -275,9 +275,9 @@ def main():
     )
 
     replace_if_found_ordered_dict(
-        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
-            "Fn::Join"
-        ][1],
+        template["Resources"]["LaunchTemplate"]["Properties"]["LaunchTemplateData"][
+            "UserData"
+        ]["Fn::Base64"]["Fn::Join"][1],
         "# Install CloudWatch Agent",
         {
             "Fn::If": [
@@ -297,9 +297,9 @@ def main():
     )
 
     replace_if_found_ordered_dict(
-        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
-            "Fn::Join"
-        ][1],
+        template["Resources"]["LaunchTemplate"]["Properties"]["LaunchTemplateData"][
+            "UserData"
+        ]["Fn::Base64"]["Fn::Join"][1],
         "# Install CloudGen Access Proxy",
         {
             "Fn::If": [
@@ -311,9 +311,9 @@ def main():
     )
 
     replace_if_found_ordered_dict(
-        template["Resources"]["LaunchConfig"]["Properties"]["UserData"]["Fn::Base64"][
-            "Fn::Join"
-        ][1],
+        template["Resources"]["LaunchTemplate"]["Properties"]["LaunchTemplateData"][
+            "UserData"
+        ]["Fn::Base64"]["Fn::Join"][1],
         "# Harden instance and reboot",
         {
             "Fn::If": [
