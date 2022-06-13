@@ -29,7 +29,7 @@ Metadata:
         Parameters:
           - EC2ASGDesiredCapacity
           - EC2InstanceType
-          - EC2KeyName
+          - EC2SessionManager
       - Label:
           default: Logging
         Parameters:
@@ -57,8 +57,8 @@ Metadata:
         default: Number of desired instances
       EC2InstanceType:
         default: Instance type to use for the proxy
-      EC2KeyName:
-        default: SSH Public Key Name for the instance
+      EC2SessionManager:
+        default: Systems Manager - Session Manager - Console access
       AccessProxyLoglevel:
         default: Log level for the application
       CloudWatchLogs:
@@ -136,14 +136,18 @@ Parameters:
     Type: Number
     MinValue: 1
 
-  EC2KeyName:
+  EC2SessionManager:
     Description: >-
-      EC2 instance key name
-      Optional: Selecting existing EC2 KeyPair
-    Type: AWS::EC2::KeyPair::KeyName
+      Default is true. Configures Systems Manager Session Manager to allow console
+      access.
+    Type: String
+    Default: true
+    AllowedValues:
+      - false
+      - true
 
   EC2InstanceType:
-    Description: EC2 instance type
+    Description: EC2 instance type.
     Type: String
     Default: t3.small
     AllowedValues:
@@ -213,6 +217,7 @@ Conditions:
       - true
   CloudWatchLogsEnabled: !Equals [!Ref CloudWatchLogs, true]
   CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
+  EC2SessionManagerEnabled: !Equals [!Ref EC2SessionManager, true]
   RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
 Mappings:
   RegionMap:
@@ -556,6 +561,9 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - !If [EC2SessionManagerEnabled, 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore',
+          !Ref 'AWS::NoValue']
       Path: /
       Tags:
         - Key: Name
