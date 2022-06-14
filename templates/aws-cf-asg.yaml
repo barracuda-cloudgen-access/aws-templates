@@ -19,6 +19,7 @@ Metadata:
           - VpcId
           - EC2Subnets
           - NLBPublicSubnets
+          - NLBHealthCheckGracePeriod
           - EC2AssociatePublicIpAddress
       - Label:
           default: Amazon EC2 Configuration
@@ -26,7 +27,7 @@ Metadata:
           - EC2AMI
           - EC2ASGDesiredCapacity
           - EC2InstanceType
-          - EC2KeyName
+          - EC2SessionManager
       - Label:
           default: Logging
         Parameters:
@@ -44,6 +45,8 @@ Metadata:
         default: Subnets for instances
       NLBPublicSubnets:
         default: Subnets for Network Load Balancer
+      NLBHealthCheckGracePeriod:
+        default: Health check grace period for new instances
       EC2AssociatePublicIpAddress:
         default: Associate Public Ip Address to instances
       EC2AMI:
@@ -52,8 +55,8 @@ Metadata:
         default: Number of desired instances
       EC2InstanceType:
         default: Instance type to use for the proxy
-      EC2KeyName:
-        default: SSH Public Key Name for the instance
+      EC2SessionManager:
+        default: Systems Manager - Session Manager - Console access
       AccessProxyLoglevel:
         default: Log level for the application
       CloudWatchLogs:
@@ -94,6 +97,15 @@ Parameters:
       NOTE: Use Public Subnets only.
     Type: List<AWS::EC2::Subnet::Id>
 
+  NLBHealthCheckGracePeriod:
+    Description: >-
+      Default: 300. The amount of time, in seconds, that Amazon EC2 Auto Scaling waits
+      before checking the health status of new instances.
+    Default: 300
+    Type: Number
+    MinValue: 0
+    MaxValue: 36000
+
   EC2Subnets:
     Description: >-
       Select the Subnet Ids to use for the EC2 instances.
@@ -111,19 +123,22 @@ Parameters:
       - true
 
   EC2ASGDesiredCapacity:
-    Description: Enter the desired capacity for the ASG
+    Description: Enter the desired capacity for the ASG.
     Default: 2
     Type: Number
     MinValue: 1
 
-  EC2KeyName:
+  EC2SessionManager:
     Description: >-
-      EC2 instance key name
-      Optional: Selecting existing EC2 KeyPair
-    Type: AWS::EC2::KeyPair::KeyName
+      Default is true. Configures Systems Manager Session Manager to allow console access.
+    Type: String
+    Default: true
+    AllowedValues:
+      - false
+      - true
 
   EC2InstanceType:
-    Description: EC2 instance type
+    Description: EC2 instance type.
     Type: String
     Default: t3.small
     AllowedValues:
@@ -193,6 +208,7 @@ Conditions:
 
   CloudWatchLogsEnabled: !Equals [!Ref CloudWatchLogs, true]
   CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
+  EC2SessionManagerEnabled: !Equals [!Ref EC2SessionManager, true]
   RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
 
 Resources:
@@ -344,12 +360,14 @@ Resources:
     Properties:
       VPCZoneIdentifier: !Ref EC2Subnets
       Cooldown: '120'
-      LaunchConfigurationName: !Ref LaunchConfig
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.DefaultVersionNumber
       MaxSize: !Ref EC2ASGDesiredCapacity
       MinSize: !Ref EC2ASGDesiredCapacity
       DesiredCapacity: !Ref EC2ASGDesiredCapacity
       HealthCheckType: ELB
-      HealthCheckGracePeriod: 300
+      HealthCheckGracePeriod: !Ref NLBHealthCheckGracePeriod
       TargetGroupARNs:
         - !Ref NLBTargetGroup
       TerminationPolicies:
@@ -365,62 +383,87 @@ Resources:
           Value: !If [RedisRequired, 'true', 'false']
           PropagateAtLaunch: true
 
-  LaunchConfig:
-    Type: AWS::AutoScaling::LaunchConfiguration
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      AssociatePublicIpAddress: !Ref EC2AssociatePublicIpAddress
-      KeyName: !Ref EC2KeyName
-      ImageId: !Ref EC2AMI
-      SecurityGroups:
-        - !Ref InboundEC2SecGroup
-        - !Ref ResourceSecGroup
-        - !If [RedisRequired, !Ref RedisSecGroup, !Ref 'AWS::NoValue']
-      InstanceType: !Ref EC2InstanceType
-      IamInstanceProfile: !Ref InstanceProfile
-      UserData:
-        Fn::Base64:
-          "Fn::Join":
-            # This needs double quotes to work
-            - "\n"
-            -   - '#!/bin/bash'
-                - set -xeuo pipefail
-                - ''
-                - '# Install CloudWatch Agent'
-                - Fn::If:
-                  - CloudWatchLogsEnabled
-                  - >-
-                    curl -sL "https://url.access.barracuda.com/config-ec2-cloudwatch-logs"
-                    | bash -s -- \
-                  - Ref: 'AWS::NoValue'
-                - Fn::If:
-                  - CloudWatchLogsEnabled
-                  - Fn::Sub: '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy" \'
-                  - Ref: 'AWS::NoValue'
-                - Fn::If:
-                  - CloudWatchLogsEnabled
-                  - Fn::Sub: '  -r "${AWS::Region}"'
-                  - Ref: 'AWS::NoValue'
-                - ''
-                - '# Install CloudGen Access Proxy'
-                - curl -sL "https://url.access.barracuda.com/proxy-linux" | bash -s -- \
-                - Fn::If:
-                  - RedisRequired
-                  - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}" \'
-                  - Ref: 'AWS::NoValue'
-                - Fn::If:
-                  - RedisRequired
-                  - Fn::Sub: '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}" \'
-                  - Ref: 'AWS::NoValue'
-                - '  -u \'
-                - Fn::Sub: '  -p "${AccessProxyPublicPort}" \'
-                - Fn::Sub:  '  -l "${AccessProxyLoglevel}" \'
-                - Fn::Sub:
-                  - '  -e "FYDE_PREFIX=${Value}_"'
-                  - Value: !Join ['_', Fn::Split: ['-', Fn::Sub: '${AWS::StackName}']]
-                - ''
-                - '# Harden instance and reboot'
-                - curl -sL "https://url.access.barracuda.com/harden-linux" | bash -s --
-                - shutdown -r now
+      LaunchTemplateName: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: true
+              VolumeSize: 8
+              VolumeType: gp3
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        ImageId: !Ref EC2AMI
+        InstanceInitiatedShutdownBehavior: terminate
+        InstanceType: !Ref EC2InstanceType
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: !Ref EC2AssociatePublicIpAddress
+            DeviceIndex: 0
+            Groups:
+              - !Ref InboundEC2SecGroup
+              - !Ref ResourceSecGroup
+              - !If [RedisRequired, !Ref RedisSecGroup, !Ref 'AWS::NoValue']
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpProtocolIpv6: disabled
+          HttpPutResponseHopLimit: 3
+          HttpTokens: required
+          InstanceMetadataTags: enabled
+        TagSpecifications:
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub '${AWS::StackName}-CloudGenAccessProxy'
+              - Key: Application
+                Value: CloudGenAccessProxyASG
+        UserData:
+          Fn::Base64:
+            "Fn::Join":
+              # This needs double quotes to work
+              - "\n"
+              -   - '#!/bin/bash'
+                  - set -xeuo pipefail
+                  - ''
+                  - '# Install CloudWatch Agent'
+                  - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - >-
+                      curl -sL "https://url.access.barracuda.com/config-ec2-cloudwatch-logs"
+                      | bash -s -- \
+                    - Ref: 'AWS::NoValue'
+                  - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - Fn::Sub: '  -l "/aws/ec2/${AWS::StackName}-CloudGenAccessProxy" \'
+                    - Ref: 'AWS::NoValue'
+                  - Fn::If:
+                    - CloudWatchLogsEnabled
+                    - Fn::Sub: '  -r "${AWS::Region}"'
+                    - Ref: 'AWS::NoValue'
+                  - ''
+                  - '# Install CloudGen Access Proxy'
+                  - curl -sL "https://url.access.barracuda.com/proxy-linux" | bash -s -- \
+                  - Fn::If:
+                    - RedisRequired
+                    - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}" \'
+                    - Ref: 'AWS::NoValue'
+                  - Fn::If:
+                    - RedisRequired
+                    - Fn::Sub: '  -s "${RedisCacheReplicationGroup.PrimaryEndPoint.Port}" \'
+                    - Ref: 'AWS::NoValue'
+                  - '  -u \'
+                  - Fn::Sub: '  -p "${AccessProxyPublicPort}" \'
+                  - Fn::Sub:  '  -l "${AccessProxyLoglevel}" \'
+                  - Fn::Sub:
+                    - '  -e "FYDE_PREFIX=${Value}_"'
+                    - Value: !Join ['_', Fn::Split: ['-', Fn::Sub: '${AWS::StackName}']]
+                  - ''
+                  - '# Harden instance and reboot'
+                  - curl -sL "https://url.access.barracuda.com/harden-linux" | bash -s --
+                  - shutdown -r now
 
 #
 # IAM
@@ -444,6 +487,8 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - !If [EC2SessionManagerEnabled, 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore', !Ref 'AWS::NoValue']
       Path: /
       Tags:
         - Key: Name
