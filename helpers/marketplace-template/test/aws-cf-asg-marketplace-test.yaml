@@ -23,7 +23,6 @@ Metadata:
           - VpcId
           - EC2Subnets
           - NLBPublicSubnets
-          - NLBHealthCheckGracePeriod
           - EC2AssociatePublicIpAddress
       - Label:
           default: Amazon EC2 Configuration
@@ -37,6 +36,11 @@ Metadata:
           - AccessProxyLoglevel
           - CloudWatchLogs
           - CloudWatchLogsRetentionInDays
+      - Label:
+          default: Troubleshooting
+        Parameters:
+          - NLBHealthCheckGracePeriod
+          - SessionManagerParameterStore
     ParameterLabels:
       AccessProxyToken:
         default: Access Proxy Token
@@ -52,8 +56,6 @@ Metadata:
         default: Subnets for instances
       NLBPublicSubnets:
         default: Subnets for Network Load Balancer
-      NLBHealthCheckGracePeriod:
-        default: Health check grace period for new instances
       EC2AssociatePublicIpAddress:
         default: Associate Public Ip Address to instances
       EC2ASGDesiredCapacity:
@@ -68,6 +70,10 @@ Metadata:
         default: Send logs to CloudWatch
       CloudWatchLogsRetentionInDays:
         default: Log Retention
+      NLBHealthCheckGracePeriod:
+        default: Health check grace period for new instances
+      SessionManagerParameterStore:
+        default: Systems Manager - Session Manager - Parameter Store
 
 Parameters:
 
@@ -116,15 +122,6 @@ Parameters:
       Select the Public Subnet Ids to use for the Network Load Balancer.
       NOTE: Use Public Subnets only.
     Type: List<AWS::EC2::Subnet::Id>
-
-  NLBHealthCheckGracePeriod:
-    Description: >-
-      Default: 300. The amount of time, in seconds, that Amazon EC2 Auto Scaling waits
-      before checking the health status of new instances.
-    Default: 300
-    Type: Number
-    MinValue: 0
-    MaxValue: 36000
 
   EC2Subnets:
     Description: >-
@@ -217,6 +214,26 @@ Parameters:
       - error
       - critical
 
+  NLBHealthCheckGracePeriod:
+    Description: >-
+      Default: 300. The amount of time, in seconds, that Amazon EC2 Auto Scaling waits
+      before checking the health status of new instances.
+    Default: 300
+    Type: Number
+    MinValue: 0
+    MaxValue: 36000
+
+  SessionManagerParameterStore:
+    Description: >-
+      Default is true.
+      Set to false to disable querying the Session Manager Parameter Store for process
+      arguments.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
 Conditions:
 
   AccessProxyGetLatestScriptsTrue:
@@ -231,6 +248,8 @@ Conditions:
   CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
   EC2SessionManagerEnabled: !Equals [!Ref EC2SessionManager, true]
   RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
+  SessionManagerParameterStoreDisabled: !Equals [!Ref SessionManagerParameterStore,
+    false]
 Mappings:
   RegionMap:
     af-south-1:
@@ -424,6 +443,8 @@ Resources:
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
       AutoScalingRollingUpdate:
         MaxBatchSize: 1
     Properties:
@@ -431,7 +452,7 @@ Resources:
       Cooldown: '120'
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
-        Version: !GetAtt LaunchTemplate.DefaultVersionNumber
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
       MaxSize: !Ref EC2ASGDesiredCapacity
       MinSize: !Ref EC2ASGDesiredCapacity
       DesiredCapacity: !Ref EC2ASGDesiredCapacity
@@ -526,6 +547,10 @@ Resources:
                       - curl -sL "https://url.access.barracuda.com/proxy-linux" |
                         bash -s -- \
                       - /usr/local/proxy-linux.sh \
+                  - Fn::If:
+                      - SessionManagerParameterStoreDisabled
+                      - '  -e "DISABLE_AWS_SSM=1" \'
+                      - Ref: 'AWS::NoValue'
                   - Fn::If:
                       - RedisRequired
                       - Fn::Sub: '  -r "${RedisCacheReplicationGroup.PrimaryEndPoint.Address}"
