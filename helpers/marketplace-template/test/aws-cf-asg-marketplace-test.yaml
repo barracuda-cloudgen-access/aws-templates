@@ -424,6 +424,8 @@ Resources:
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
       AutoScalingRollingUpdate:
         MaxBatchSize: 1
     Properties:
@@ -431,7 +433,7 @@ Resources:
       Cooldown: '120'
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
-        Version: !GetAtt LaunchTemplate.DefaultVersionNumber
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
       MaxSize: !Ref EC2ASGDesiredCapacity
       MinSize: !Ref EC2ASGDesiredCapacity
       DesiredCapacity: !Ref EC2ASGDesiredCapacity
