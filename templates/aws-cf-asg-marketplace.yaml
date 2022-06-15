@@ -40,7 +40,7 @@ Metadata:
           default: Troubleshooting
         Parameters:
           - NLBHealthCheckGracePeriod
-          - SessionManagerParameterStore
+          - SystemsManagerParameterStore
     ParameterLabels:
       AccessProxyToken:
         default: Access Proxy Token
@@ -72,8 +72,8 @@ Metadata:
         default: Log Retention
       NLBHealthCheckGracePeriod:
         default: Health check grace period for new instances
-      SessionManagerParameterStore:
-        default: Systems Manager - Session Manager - Parameter Store
+      SystemsManagerParameterStore:
+        default: AWS Systems Manager - Parameter Store
 
 Parameters:
 
@@ -223,11 +223,11 @@ Parameters:
     MinValue: 0
     MaxValue: 36000
 
-  SessionManagerParameterStore:
+  SystemsManagerParameterStore:
     Description: >-
       Default is true.
-      Set to false to disable querying the Session Manager Parameter Store for process
-      arguments.
+      Set to false to disable querying the AWS Systems Manager Parameter Store for
+      service arguments.
     Type: String
     Default: true
     AllowedValues:
@@ -248,7 +248,7 @@ Conditions:
   CloudWatchLogsNoDelete: !Equals [!Ref CloudWatchLogsRetentionInDays, 0]
   EC2SessionManagerEnabled: !Equals [!Ref EC2SessionManager, true]
   RedisRequired: !Not [!Equals [!Ref EC2ASGDesiredCapacity, 1]]
-  SessionManagerParameterStoreDisabled: !Equals [!Ref SessionManagerParameterStore,
+  SystemsManagerParameterStoreDisabled: !Equals [!Ref SystemsManagerParameterStore,
     false]
 Mappings:
   RegionMap:
@@ -548,7 +548,7 @@ Resources:
                         bash -s -- \
                       - /usr/local/proxy-linux.sh \
                   - Fn::If:
-                      - SessionManagerParameterStoreDisabled
+                      - SystemsManagerParameterStoreDisabled
                       - '  -e "DISABLE_AWS_SSM=1" \'
                       - Ref: 'AWS::NoValue'
                   - Fn::If:
