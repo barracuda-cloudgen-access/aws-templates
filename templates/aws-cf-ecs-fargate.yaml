@@ -54,6 +54,7 @@ Parameters:
     Type: String
     MinLength: 20
     NoEcho: true
+    # yamllint disable-line rule:line-length
     AllowedPattern: ^https:\/\/[a-zA-Z0-9.-]+\.(fyde\.com|access\.barracuda\.com)\/proxies/v[0-9]+\/enrollment\/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\?proxy_auth_token=[0-9a-zA-Z]+&tenant_id=[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$
 
   cloudgenAccessProxyPublicPort:
@@ -140,6 +141,8 @@ Resources:
 
   cloudGenAccessEnrollmentToken:
     Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Name: !Join [ '_', !Split [ '-', !Sub '${AWS::StackName}_enrollment_token' ] ]
       Description: CloudGen Access Proxy Enrollment Token
